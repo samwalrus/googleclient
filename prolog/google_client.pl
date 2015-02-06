@@ -79,7 +79,7 @@ http:location(oath2, root(oauth2), [priority(-100)]).
 :- http_handler(oath2(auth_redirect), oauth_handle_redirect, []).
 
 :- dynamic
-	forgery_state/5.		% State, Site, Redirect, ReturnTo, Time
+	forgery_state/5.		% State, Site, Redirect, ClientData, Time
 
 %%	oauth_authenticate(+Request, +Site, +Options)
 %
@@ -92,8 +92,9 @@ http:location(oath2, root(oauth2), [priority(-100)]).
 %	  - login_hint(+Hint)
 %	  Hint to select the right account.  Typically an email
 %	  address.  By default, it is not sent.
-%	  - return_to(+URL)
-%	  If provided, return to the given URL.
+%	  - client_data(+Data)
+%	  Add the given Data (any Prolog term) to the dict that is
+%	  passed to the login hooks.
 
 oauth_authenticate(Request, Site, Options) :-
 	oauth_options(Options, Params),
@@ -101,10 +102,10 @@ oauth_authenticate(Request, Site, Options) :-
 	key(client_id, ClientId),
 	http_link_to_id(oauth_handle_redirect, [], LocalRedirect),
 	public_url(Request, LocalRedirect, Redirect),
-	option(return_to(ReturnTo), Options, -),
+	option(client_data(ClientData), Options, _),
 	anti_forgery_state(AntiForgery),
 	get_time(Now),
-	asserta(forgery_state(AntiForgery, Site, Redirect, ReturnTo, Now)),
+	asserta(forgery_state(AntiForgery, Site, Redirect, ClientData, Now)),
 	url_extend(search([ client_id(ClientId),
 			    response_type(code),
 			    scope('openid email profile'),
@@ -149,7 +150,7 @@ oauth_handle_redirect(Request) :-
 			],
 			[ %form_data(Form)
 			]),
-	validate_forgery_state(State, Site, Redirect, ReturnTo),
+	validate_forgery_state(State, Site, Redirect, ClientData),
 	openid_connect_discover(Site, DiscDoc),
 	key(client_id, ClientId),
 	key(client_secret, ClientSecret),
@@ -166,9 +167,9 @@ oauth_handle_redirect(Request) :-
 	call_cleanup(json_read_dict(In, Response),
 		     close(In)),
 	jwt(Response.id_token, Claim),
-	oauth_login(Claim, Response, DiscDoc, ReturnTo).
+	oauth_login(Claim, Response, DiscDoc, ClientData).
 
-%%	oauth_login(+Claim, +Response, +DiscDoc, +ReturnTo)
+%%	oauth_login(+Claim, +Response, +DiscDoc, +ClientData)
 %
 %	Handle the oauth claim. At least from Google, the claim contains
 %	the following interesting fields:
@@ -184,10 +185,10 @@ oauth_handle_redirect(Request) :-
 %
 %	@see https://developers.google.com/accounts/docs/OpenIDConnect#obtaininguserprofileinformation
 
-oauth_login(Claim, _, _, ReturnTo) :-
-	add_return_to(ReturnTo, Claim, Claim1),
+oauth_login(Claim, _, _, ClientData) :-
+	add_client_data(ClientData, Claim, Claim1),
 	login_existing_user(Claim1), !.
-oauth_login(_Claim, Response, DiscDoc, ReturnTo) :-
+oauth_login(_Claim, Response, DiscDoc, ClientData) :-
 	key(client_id, ClientId),
 	key(client_secret, ClientSecret),
 	url_extend(search([ access_token(Response.access_token),
@@ -202,15 +203,15 @@ oauth_login(_Claim, Response, DiscDoc, ReturnTo) :-
 		  ]),
 	call_cleanup(json_read_dict(In, Profile),
 		     close(In)),
-	add_return_to(ReturnTo, Profile, Profile1),
+	add_client_data(ClientData, Profile, Profile1),
 	create_user(Profile1).
 
-add_return_to(-, Dict, Dict) :- !.
-add_return_to(URL, Dict, Dict.put(return_to, URL)).
+add_client_data(ClientData, Dict, Dict) :- var(ClientData), !.
+add_client_data(ClientData, Dict, Dict.put(client_data, ClientData)).
 
-validate_forgery_state(State, Site, Redirect, ReturnTo) :-
-	(   forgery_state(State, Site, Redirect, ReturnTo, Stamp)
-	->  retractall(forgery_state(State, Site, Redirect, ReturnTo, Stamp))
+validate_forgery_state(State, Site, Redirect, ClientData) :-
+	(   forgery_state(State, Site, Redirect, ClientData, Stamp)
+	->  retractall(forgery_state(State, Site, Redirect, ClientData, Stamp))
 	;   throw(http_reply(not_acceptable('Invalid state parameter')))
 	).
 
@@ -286,9 +287,9 @@ openid_connect_discover_url(
 %	  String that uniquely indentifies the user inside Google.
 %	  - email:string
 %	  Email address of the user.
-%	  - return_to:URL
+%	  - client_data:Term
 %	  Present if oauth_authenticate/3 was called with the option
-%	  return_to(URL).
+%	  client_data(Term).  Note that the term passed is a copy.
 %
 %	This call must return an HTML  document indicating that the user
 %	logged in successfully or redirect  to   the  URL  supplied with
