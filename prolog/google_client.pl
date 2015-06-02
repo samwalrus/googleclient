@@ -29,7 +29,8 @@
 
 :- module(google_client,
 	  [ oauth_authenticate/3,	% +Request, +Site, +Options
-	    openid_connect_discover/2	% +Site, -DiscoveryDict
+	    openid_connect_discover/2,	% +Site, -DiscoveryDict
+            post_to_google4/4
 	  ]).
 :- use_module(library(http/http_open)).
 :- use_module(library(http/http_dispatch)).
@@ -154,6 +155,7 @@ oauth_handle_redirect(Request) :-
 	openid_connect_discover(Site, DiscDoc),
 	key(client_id, ClientId),
 	key(client_secret, ClientSecret),
+	%trace,
 	http_open(DiscDoc.token_endpoint,
 		  In,
 		  [ cert_verify_hook(cert_verify),
@@ -168,6 +170,27 @@ oauth_handle_redirect(Request) :-
 		     close(In)),
 	jwt(Response.id_token, Claim),
 	oauth_login(Claim, Response, DiscDoc, ClientData).
+
+
+post_to_google4(Response,Code,ClientId,ClientSecret) :-
+	Site ='google.com',
+	openid_connect_discover(Site, DiscDoc),
+	http_open(DiscDoc.token_endpoint,
+		  In,
+		  [ cert_verify_hook(cert_verify),
+		    post(form([ code(Code),
+				client_id(ClientId),
+				client_secret(ClientSecret),
+				redirect_uri('http://localhost:5000/'),
+				grant_type(authorization_code)
+			      ]))
+		  ]),
+	call_cleanup(json_read_dict(In, Response),
+		     close(In)),
+	jwt(Response.id_token, Claim).
+
+
+	%oauth_login(Claim, Response, DiscDoc, ClientData).
 
 %%	oauth_login(+Claim, +Response, +DiscDoc, +ClientData)
 %

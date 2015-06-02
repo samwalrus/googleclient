@@ -41,10 +41,10 @@ google_client:create_user(Profile) :-
 
 google_client:key(
     client_id,
-    REPLACE_WITH_SERVICE_ACCOUNT_ID_FROM_DEVELOPER_CONSOLE).
+    '124024716168-p5lvtlj5jinp9u912s3f7v3a5cuvj2g8.apps.googleusercontent.com').
 google_client:key(
     client_secret,
-    REPLACE_WITH_CLIENTSECRET_FROM_DEVELOPERS_CONSOLE).
+    'iiXNg1MtQNUv4MnYaGYiSDbZ').
 
 :- set_setting(http:public_host, localhost).
 :- set_setting(http:public_port, 3040).
