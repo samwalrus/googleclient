@@ -19,10 +19,6 @@ http:location(files, '/f', []).
 :- http_handler('/', home_page, []).
 :- http_handler('/gconnect', gconnect, []).
 
-:- http_handler('/redirect',
-                http_redirect(moved, 'http://www.bbc.co.uk'),
-                []).
-
 :- http_handler(files(.), http_reply_from_files('test_files', []), [prefix]).
 
 server :-
@@ -160,7 +156,7 @@ call_back_script -->
 			       contentType: 'application/octet-stream; charset=utf-8',
 			       data: {code:authResult['code']},
 			       success: function(result){
-					    console.log("succes");
+					    console.log("success");
 					    console.log(result);
 					}
 			   });
