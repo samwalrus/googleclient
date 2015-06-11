@@ -1,4 +1,17 @@
+My version of this is in the file demo/oauth.pl
+
+Use server. To run the code, you need to have a local copy of the client secrets json
+file and have your google app set up correctly.
+
+Use google chrome and browse localhost:5000 and show the javascript console
+to see the token.
+
+
 # SWI-Prolog code for "Login with Google"
+
+
+
+
 
 This pack deals with "Login With   Google"  using [OpenID Connect (OAuth
 2.0                                                                  for
