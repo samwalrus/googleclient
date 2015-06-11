@@ -21,6 +21,8 @@ http:location(files, '/f', []).
 
 :- http_handler(files(.), http_reply_from_files('test_files', []), [prefix]).
 
+:- dynamic
+	my_code/1.
 server :-
 	server(5000).
 
@@ -45,62 +47,28 @@ read_client_secrets(MyWeb,Client_Id,Client_Secret) :-
 	} :<MyWeb,
 	close(Stream).
 
-post_to_google(Reply,Code,Client_Id,Client_Secret):-
-	    Grant_type=authorization_code,
-	    http_post(
-             %'http://postcatcher.in/catchers/5569b2144bc773030000825a',
-             'http://requestb.in/10qo0si1',
-	     %'https://www.googleapis.com/oauth2/v3/token',
-		form([
-		  code=Code,
-		  client_id=Client_Id,
-                  client_secret=Client_Secret,
-		  redirect_uri='http://localhost:5000/',
-		  grant_type=Grant_type
-	      ]),
-              Reply,
-             [cert_verify_hook(cert_verify)]
-          ).
-   %term_to_atom(Term,Reply).
 
-post_to_google2(JSon,Code,CID,CS):-
-	Base ='https://www.googleapis.com/oauth2/v3/token',
+
+post_to_google(Profile,Code,CID,CS):-
+
 	ListofData=[
 		       code=Code,
 		       client_id=CID,
 		       client_secret=CS,
-		       redirect_uri='http://localhost:5000/',
+		       redirect_uri='postmessage',
 		       grant_type=authorization_code
 
 			  ],
-	http_open(Base, In,
-                  [ cert_verify_hook(cert_accept_any),
-		    method(post),post(form(ListofData))
-                  ]),
-	json_read(In,JSon),
-	close(In).
-
-
-post_to_google3(Profile,Code,CID,CS):-
-	Base ='https://www.googleapis.com/oauth2/v3/token',
-	ListofData=[
-		       code=Code,
-		       client_id=CID,
-		       client_secret=CS,
-		       redirect_uri='http://localhost:5000/',
-		       grant_type=authorization_code
-
-			  ],
-        http_open(Base, In,
-                  [ cert_verify_hook(cert_verify),
+        http_open('https://www.googleapis.com/oauth2/v3/token', In,
+                  [ status_code(_ErrorCode),
 		    method(post),post(form(ListofData))
                   ]),
 	call_cleanup(json_read_dict(In, Profile),
 		     close(In)).
 
 
-cert_verify(_SSL, _ProblemCert, _AllCerts, _FirstCert, _Error) :-
-        debug(ssl(cert_verify),'~s', ['Accepting certificate']).
+%cert_verify(_SSL, _ProblemCert, _AllCerts, _FirstCert, _Error) :-
+ %       debug(ssl(cert_verify),'~s', ['Accepting certificate']).
 
 
 
@@ -112,9 +80,7 @@ home_page(Request) :-
 		    src='//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js'],[]),
 	   script([type='text/javascript',
 		    src='//apis.google.com/js/platform.js?onload=start'],[]),
-	   script([type='text/javascript',
-		    src='https://api.tiles.mapbox.com/mapbox.js/v2.1.9/mapbox.js'],[]),
-	    \call_back_script
+	   \call_back_script
 	   ],
 	    [h1('hello'),
 	    p('~w, we are glad your spirit is present with us'-[Nick]),
@@ -124,10 +90,8 @@ home_page(Request) :-
 gconnect(Request):-
 	%I need to get the code from the request
 	http_parameters(Request,[code(Code,[default(default)])]),
-	DictOut = _A{access_token:test, token_type:hello, code:Code},
 	read_client_secrets(_MyWeb,Client_Id,Client_Secret),
-        %trace,
-	post_to_google4(Reply,Code,Client_Id,Client_Secret),
+	post_to_google(Reply,Code,Client_Id,Client_Secret),
 	reply_json(Reply).
 
 
