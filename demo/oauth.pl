@@ -91,8 +91,77 @@ gconnect(Request):-
 	%I need to get the code from the request
 	http_parameters(Request,[code(Code,[default(default)])]),
 	read_client_secrets(_MyWeb,Client_Id,Client_Secret),
-	post_to_google(Reply,Code,Client_Id,Client_Secret),
-	reply_json(Reply).
+	post_to_google(Credentials,Code,Client_Id,Client_Secret),
+	exchange_token_for_details(Credentials,Result),
+	trace,
+	Result = Frog,
+	reply_json(Credentials).
+
+
+%If there is an error
+exchange_token_for_details(Credentials,Error):-
+	check_json_for_error(Credentials,Error).
+
+
+exchange_token_for_details(Credentials,Check_Result):-
+	_{
+	    access_token: AccessToken,
+	    expires_in: Expires_In,
+	    id_token: Id_token,
+	    refresh_token: Refresh_Token,
+	    token_type: Token_Type
+	} :<Credentials,
+	check_token_is_valid(AccessToken,Id_token,Check_Result).
+
+
+check_token_is_valid(AccessToken,Id_token,Check_Result):-
+	string_concat("https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=", AccessToken, URL_to_Check_Token),
+	http_open(URL_to_Check_Token, In,
+                  [ status_code(_ErrorCode)
+
+                  ]),
+	call_cleanup(json_read_dict(In, Check_Result),
+	\+ check_json_for_error(Check_Result,_Error),
+	close(In)),
+	trace,
+	%in Check result is there a user_id? compare this to Object sub
+	compare_id_tokens(Check_Result,Id_token).
+
+
+compare_id_tokens(Check_Result,Id_token):-
+	jwt(Id_token,Object),
+	_{sub:Object_Id}:<Object,
+	_{user_id:User_Id}:<Check_Result,
+	Object_Id =User_Id.
+
+check_json_for_error(Json,Error):-
+	_{
+	    error: Error
+	  } :<Json.
+
+
+jwt(String, Object) :-
+	nonvar(String),
+	split_string(String, ".", "", [Header64,Object64|_Parts]),
+	base64url_json(Header64, _Header),
+	base64url_json(Object64, Object).
+
+%%	base64url_json(+String, -JSONDict) is semidet.
+%
+%	True when JSONDict is represented  in   the  Base64URL and UTF-8
+%	encoded String.
+
+base64url_json(String, JSON) :-
+	string_codes(String, Codes),
+	phrase(base64url(Bytes), Codes),
+	phrase(utf8_codes(Text), Bytes),
+	setup_call_cleanup(
+	    open_codes_stream(Text, Stream),
+	    json_read_dict(Stream, JSON),
+	    close(Stream)).
+
+
+
 
 
 call_back_script -->
