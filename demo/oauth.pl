@@ -92,10 +92,8 @@ gconnect(Request):-
 	http_parameters(Request,[code(Code,[default(default)])]),
 	read_client_secrets(_MyWeb,Client_Id,Client_Secret),
 	post_to_google(Credentials,Code,Client_Id,Client_Secret),
-	exchange_token_for_details(Credentials,Result),
-	trace,
-	Result = Frog,
-	reply_json(Credentials).
+	exchange_token_for_details(Credentials,User_info),
+	reply_json(User_info).
 
 
 %If there is an error
@@ -103,7 +101,7 @@ exchange_token_for_details(Credentials,Error):-
 	check_json_for_error(Credentials,Error).
 
 
-exchange_token_for_details(Credentials,Check_Result):-
+exchange_token_for_details(Credentials,User_Info):-
 	_{
 	    access_token: AccessToken,
 	    expires_in: Expires_In,
@@ -111,7 +109,58 @@ exchange_token_for_details(Credentials,Check_Result):-
 	    refresh_token: Refresh_Token,
 	    token_type: Token_Type
 	} :<Credentials,
-	check_token_is_valid(AccessToken,Id_token,Check_Result).
+	check_token_is_valid(AccessToken,Id_token,Check_Result),
+        %check if user is logged in already? here or in check token?
+	%set session vairables.
+        set_session_var(credentials,Credentials),
+	_{user_id:Gplus_id}:<Check_Result,
+        set_session_var(gplus_id,Gplus_id),
+	get_user_info(AccessToken,User_Info).
+
+get_user_info(Access_Token, User_Info):-
+
+	url_extend(search([ access_token(Access_Token)
+			   ]),
+		   'https://www.googleapis.com/oauth2/v1/userinfo',
+		   URL),
+	http_open(URL, In,
+                  [ status_code(_ErrorCode)
+
+                  ]),
+	call_cleanup(json_read_dict(In, User_Info),
+	\+ check_json_for_error(User_Info,_Error),
+	close(In)).
+
+
+
+%%	url_extend(+Extend, +URL0, -URL)
+%
+%	Extend a URL, typically by adding parameters to it.
+
+url_extend(search(Params), URL0, URL) :-
+	uri_components(URL0, Components0),
+	uri_data(search, Components0, Search0),
+	extend_search(Search0, Params, Search),
+	uri_data(search, Components0, Search, Components),
+	uri_components(URL, Components).
+
+extend_search(Var, Params, String) :-
+	var(Var), !,
+	uri_query_components(String, Params).
+extend_search(String0, Params, String) :-
+	uri_query_components(String0, Params0),
+	append(Params0, Params, AllParams),
+	uri_query_components(String, AllParams).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+set_session_var(Var,Value):-
+	SessionVar =.. [Var,Value],
+	http_session_data(SessionVar),!.
+
+set_session_var(Var,Value) :-
+	Session_Var =.. [Var,Value],
+	http_session_assert(Session_Var).
 
 
 check_token_is_valid(AccessToken,Id_token,Check_Result):-
@@ -123,12 +172,13 @@ check_token_is_valid(AccessToken,Id_token,Check_Result):-
 	call_cleanup(json_read_dict(In, Check_Result),
 	\+ check_json_for_error(Check_Result,_Error),
 	close(In)),
-	trace,
+	%trace,
 	%in Check result is there a user_id? compare this to Object sub
 	compare_id_tokens(Check_Result,Id_token),
         %issued_to from check_result should be the same as clien_id from client_secrets file.
 	compare_client_ids(Check_Result).
         %check to see if they are logged in already?
+
 
 compare_client_ids(Check_Result):-
 	_{issued_to:Issued_To}:<Check_Result,
@@ -186,7 +236,10 @@ call_back_script -->
 			   {code:authResult['code']},
 			   function(data,status){
 			    //console.log("Data: " + data.reply + "\nStatus: " + status);
-			    console.log("Access Token: " + data.access_token + "\nExpires in : " + data.expires_in + "\nToken_type : " + data.token_type +  "\nStatus: " + status);
+			    console.log("Email: " + data.email + "\nPicture : " + data.picture + "\nGender : " + data.gender +  "\nStatus: " + status);
+			   var img = $('<img id="dynamic">');
+			   img.attr('src', data.picture);
+			   img.appendTo('body');
 			   });
 			 /*
 			 $.ajax({
