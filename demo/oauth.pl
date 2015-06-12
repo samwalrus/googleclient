@@ -125,7 +125,15 @@ check_token_is_valid(AccessToken,Id_token,Check_Result):-
 	close(In)),
 	trace,
 	%in Check result is there a user_id? compare this to Object sub
-	compare_id_tokens(Check_Result,Id_token).
+	compare_id_tokens(Check_Result,Id_token),
+        %issued_to from check_result should be the same as clien_id from client_secrets file.
+	compare_client_ids(Check_Result).
+        %check to see if they are logged in already?
+
+compare_client_ids(Check_Result):-
+	_{issued_to:Issued_To}:<Check_Result,
+	read_client_secrets(_MyWeb,Client_Id,_Client_Secret),
+	Issued_To = Client_Id.
 
 
 compare_id_tokens(Check_Result,Id_token):-
