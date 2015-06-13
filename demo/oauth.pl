@@ -20,6 +20,7 @@ http:location(files, '/f', []).
 :- http_handler('/gconnect', gconnect, []).
 :- http_handler('/gdisconnect', gdisconnect, []).
 :- http_handler('/log_in_check', logged_in_check, []).
+:- http_handler('/protected',protected,[]).
 
 
 
@@ -115,6 +116,12 @@ logged_in_check(Request):-
 	reply_html_page([title('User NOT Logged In')],[p('A user is NOT logged in')]).
 
 
+protected(Request):-
+	http_session_data(credentials(C)),!,
+	reply_html_page([title('Protected Page')],[p('You should only be able to see if logged in')]).
+
+protected(Request):-
+	http_redirect(moved, 'http://localhost:5000',Request).
 
 
 gconnect(Request):-
