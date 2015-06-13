@@ -18,6 +18,10 @@ http:location(files, '/f', []).
 
 :- http_handler('/', home_page, []).
 :- http_handler('/gconnect', gconnect, []).
+:- http_handler('/gdisconnect', gdisconnect, []).
+:- http_handler('/log_in_check', logged_in_check, []).
+
+
 
 :- http_handler(files(.), http_reply_from_files('test_files', []), [prefix]).
 
@@ -87,6 +91,29 @@ home_page(Request) :-
 	    \google_loginButton
 	    ]).
 
+gdisconnect(Request):-
+	http_session_data(credentials(C)),!,
+	%trace,
+	revoke_token(C.access_token, Response),
+	%Response = Frog,
+	reply_html_page([title('A User has been logged out')],[p('A user has been logged out'),p(['access_token was :',C.access_token,' Response:',Response])]),
+	http_session_retract(credentials(C)),
+	http_session_retract(gplus_id(_G)).
+
+gdisconnect(Request):-
+	reply_html_page([title('User was NOT Logged In')],[p('A user was NOT logged in so can not revoke token.')]).
+
+
+logged_in_check(Request):-
+	http_session_data(credentials(C)),!,
+	reply_html_page([title('User Logged In')],[p('A user is logged in'),p(['access_token:',C.access_token])]).
+
+logged_in_check(Request):-
+	reply_html_page([title('User NOT Logged In')],[p('A user is NOT logged in')]).
+
+
+
+
 gconnect(Request):-
 	%I need to get the code from the request
 	http_parameters(Request,[code(Code,[default(default)])]),
@@ -94,6 +121,21 @@ gconnect(Request):-
 	post_to_google(Credentials,Code,Client_Id,Client_Secret),
 	exchange_token_for_details(Credentials,User_info),
 	reply_json(User_info).
+
+
+% Not sure if this is working correctly get 400 error but seems to
+% revoke token?
+revoke_token(Access_Token, StatusCode):-
+	url_extend(search([ token(Access_Token)
+			   ]),
+		   'https://accounts.google.com/o/oauth2/revoke',
+		   URL),
+	http_open(URL, In,
+                  [ status_code(StatusCode)
+
+                  ]),
+	close(In).
+
 
 
 %If there is an error
