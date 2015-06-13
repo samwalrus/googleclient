@@ -97,8 +97,11 @@ gdisconnect(Request):-
 	revoke_token(C.access_token, Response),
 	%Response = Frog,
 	reply_html_page([title('A User has been logged out')],[p('A user has been logged out'),p(['access_token was :',C.access_token,' Response:',Response])]),
-	http_session_retract(credentials(C)),
-	http_session_retract(gplus_id(_G)).
+	http_session_retract(credentials(_)),
+	http_session_retract(gplus_id(_)),
+	http_session_retract(username(_)),
+	http_session_retract(email(_)),
+	http_session_retract(picture(_)).
 
 gdisconnect(Request):-
 	reply_html_page([title('User was NOT Logged In')],[p('A user was NOT logged in so can not revoke token.')]).
@@ -157,7 +160,10 @@ exchange_token_for_details(Credentials,User_Info):-
         set_session_var(credentials,Credentials),
 	_{user_id:Gplus_id}:<Check_Result,
         set_session_var(gplus_id,Gplus_id),
-	get_user_info(AccessToken,User_Info).
+	get_user_info(AccessToken,User_Info),
+	set_session_var(username,User_Info.name),
+	set_session_var(picture,User_Info.picture),
+	set_session_var(email,User_Info.email).
 
 get_user_info(Access_Token, User_Info):-
 
